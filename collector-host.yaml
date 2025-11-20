@@ -1,0 +1,54 @@
+# collector-host.yaml
+extensions:
+  basicauth/client:
+    client_auth:
+      username: ${env:OPENSEARCH_USER}
+      password: ${env:OPENSEARCH_PASSWORD}
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: "0.0.0.0:4317"
+      http:
+        endpoint: "0.0.0.0:4318"
+  otlp/4994:
+    protocols:
+      grpc:
+        endpoint: "0.0.0.0:4994"
+
+processors:
+  batch:
+    timeout: 5s          # ⬅️ Reducido a 5s
+    send_batch_size: 10  # ⬅️ Reducido a 10 logs
+    send_batch_max_size: 100
+  memory_limiter:
+    check_interval: 5s
+    limit_mib: 2048
+    spike_limit_mib: 256
+
+exporters:
+  opensearch:
+    http:
+      endpoint: "http://10.4.77.131:9200"
+    logs_index: "ss4o_logs-default-namespace"
+    traces_index: "ss4o_traces-default-namespace"
+
+  debug:
+    verbosity: normal
+
+service:
+  extensions: [basicauth/client]
+  pipelines:
+    traces:
+      receivers: [otlp, otlp/4994]
+      processors: [memory_limiter, batch]
+      exporters: [opensearch]
+    metrics:
+      receivers: [otlp, otlp/4994]
+      processors: [memory_limiter, batch]
+      exporters: [debug]
+    logs:
+      receivers: [otlp, otlp/4994]
+      processors: [memory_limiter, batch]
+      exporters: [opensearch]
